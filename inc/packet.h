@@ -1,0 +1,203 @@
+// MIT License
+//
+// Copyright 2013 Émilie Gillet
+// Copyright 2021 Tyler Coy
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+#pragma once
+
+#include <cstdint>
+#include <cstring>
+#include "crc32.h"
+#include "error_correction.h"
+#include "scrambler.h"
+
+namespace quadra
+{
+
+template <uint32_t packet_size>
+class Packet
+{
+protected:
+    static constexpr uint32_t kPacketDataLength = packet_size;
+
+    static constexpr uint32_t max_data_bits(uint32_t num_parity_bits)
+    {
+        return (2 << num_parity_bits) - num_parity_bits - 1;
+    }
+
+    uint32_t size_;
+    uint32_t byte_;
+    Crc32 crc_;
+    uint32_t seed_;
+    HammingDecoder hamming_;
+    Scrambler scrambler_;
+
+    struct __attribute__ ((__packed__)) PacketData
+    {
+        uint8_t payload[kPacketDataLength];
+        uint32_t crc;
+        uint16_t ecc;
+    };
+
+    union
+    {
+        PacketData packet_;
+        uint8_t bytes_[sizeof(PacketData)];
+    };
+
+    static_assert(
+        kPacketDataLength * 8 <= max_data_bits(sizeof(packet_.ecc) * 8));
+
+    bool PushByte(uint8_t byte)
+    {
+        bool was_data_byte = (size_ < kPacketDataLength);
+
+        if (size_ < sizeof(PacketData))
+        {
+            bytes_[size_] = byte;
+            size_++;
+
+            if (size_ == sizeof(PacketData))
+            {
+                Finalize();
+            }
+        }
+
+        return was_data_byte;
+    }
+
+    void Finalize(void)
+    {
+        #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+            packet_.ecc = __builtin_bswap16(packet_.ecc);
+        #endif
+
+        hamming_.Init(packet_.ecc);
+        hamming_.Process(bytes_, sizeof(PacketData) - sizeof(packet_.ecc));
+
+        crc_.Seed(seed_);
+        crc_.Process(packet_.payload, kPacketDataLength);
+    }
+
+public:
+    void Init(uint32_t crc_seed)
+    {
+        crc_.Init();
+        seed_ = crc_seed;
+        Reset();
+    }
+
+    void Reset(void)
+    {
+        size_ = 0;
+        byte_ = 1;
+        scrambler_.Init();
+    }
+
+    bool WriteSymbol(uint8_t symbol)
+    {
+        byte_ = (byte_ << 4) | symbol;
+        bool was_data_byte = false;
+
+        if (byte_ & 0x100)
+        {
+            was_data_byte = PushByte(scrambler_.Process(byte_));
+            byte_ = 1;
+        }
+
+        return was_data_byte;
+    }
+
+    bool full(void)
+    {
+        return size_ == sizeof(PacketData);
+    }
+
+    uint32_t calculated_crc(void)
+    {
+        return crc_.crc();
+    }
+
+    uint32_t expected_crc(void)
+    {
+        #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+            return __builtin_bswap32(packet_.crc);
+        #else
+            return packet_.crc;
+        #endif
+    }
+
+    bool valid(void)
+    {
+        return full() && (calculated_crc() == expected_crc());
+    }
+
+    const uint8_t* data(void)
+    {
+        return packet_.payload;
+    }
+
+    uint8_t last_byte(void)
+    {
+        return size_ ? bytes_[size_ - 1] : 0;
+    }
+};
+
+template <uint32_t block_size>
+class Block
+{
+protected:
+    uint32_t data_[block_size / 4];
+    uint32_t size_;
+
+public:
+    void Init(void)
+    {
+        Clear();
+    }
+
+    void Clear(void)
+    {
+        size_ = 0;
+    }
+
+    template <uint32_t packet_size>
+    void AppendPacket(Packet<packet_size>& packet)
+    {
+        if (size_ <= block_size - packet_size)
+        {
+            std::memcpy(&data_[size_ / 4], packet.data(), packet_size);
+            size_ += packet_size;
+        }
+    }
+
+    bool full(void)
+    {
+        return size_ == block_size;
+    }
+
+    const uint32_t* data(void)
+    {
+        return data_;
+    }
+};
+
+}
