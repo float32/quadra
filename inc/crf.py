@@ -8,7 +8,7 @@ def gen_filter(Tsymbol):
     return signal.bessel(N, wc, output='sos', fs=1)
 
 def generate():
-    for Tsym in (6, 8, 12, 16):
+    for Tsym in (5, 6, 8, 10, 12, 16):
         yield Tsym, gen_filter(Tsym)
 
 if __name__ == '__main__':

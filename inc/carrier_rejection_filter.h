@@ -77,6 +77,17 @@ protected:
 
     cog.outl('static constexpr int32_t kNumSections = {};'.format(num_sec))
     ]]] */
+    static constexpr Biquad kFilter05[2] =
+    {
+        {
+            { 3.92776413e-02,  7.85552825e-02,  3.92776413e-02, },
+            {-3.79928658e-01,  5.60593774e-02, },
+        },
+        {
+            { 1.00000000e+00,  2.00000000e+00,  1.00000000e+00, },
+            {-3.20574398e-01,  2.50042978e-01, },
+        },
+    };
     static constexpr Biquad kFilter06[2] =
     {
         {
@@ -97,6 +108,17 @@ protected:
         {
             { 1.00000000e+00,  2.00000000e+00,  1.00000000e+00, },
             {-9.30043914e-01,  3.73040930e-01, },
+        },
+    };
+    static constexpr Biquad kFilter10[2] =
+    {
+        {
+            { 4.28742029e-03,  8.57484059e-03,  4.28742029e-03, },
+            {-1.07701239e+00,  3.00943042e-01, },
+        },
+        {
+            { 1.00000000e+00,  2.00000000e+00,  1.00000000e+00, },
+            {-1.14096126e+00,  4.47300396e-01, },
         },
     };
     static constexpr Biquad kFilter12[2] =
@@ -123,15 +145,19 @@ protected:
     };
 
     static_assert(
+        symbol_duration ==  5 ||
         symbol_duration ==  6 ||
         symbol_duration ==  8 ||
+        symbol_duration == 10 ||
         symbol_duration == 12 ||
         symbol_duration == 16 ||
         false, "Unsupported symbol duration");
 
     static constexpr const Biquad* kFilter =
+        symbol_duration ==  5 ? kFilter05 :
         symbol_duration ==  6 ? kFilter06 :
         symbol_duration ==  8 ? kFilter08 :
+        symbol_duration == 10 ? kFilter10 :
         symbol_duration == 12 ? kFilter12 :
         symbol_duration == 16 ? kFilter16 :
                                 nullptr;

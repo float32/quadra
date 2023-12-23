@@ -17,11 +17,12 @@ A Python script is provided for encoding firmware in a wav file.
 
 - **High performance, small footprint**:
     Utilizes 16-QAM encoding for 4 bits per symbol.
-    Tested on a Cortex-M4F at 64MHz with an 8Kbaud symbol rate.
+    Tested on a Cortex-M4F at 64MHz with a 48kHz sample rate and 9600 baud
+    symbol rate.
     Can squeeze into as little as 12KB.
 - **Robust**:
     Automatic gain control and basic error correction reduce decoding errors.
-    Tolerates noise up to 18dB SNR and sample rate mismatch up to 5%.
+    Tolerates noise up to 30dB SNR and sample rate mismatch up to 5%.
 - **Portable**: No assumptions made about underlying hardware. No dependencies
     outside of the C++ standard library.
 - **Safe**: Static memory allocation, no constructors.
@@ -49,7 +50,7 @@ Here's how we might encode our firmware file:
 ```sh
 python3 quadra/encoder.py \
     --sample-rate 48000 \
-    --symbol-rate 8000 \
+    --symbol-rate 9600 \
     --packet-size 256 \
     --block-size 1K \
     --write-time 50 \
@@ -86,9 +87,9 @@ class Decoder
 };
 ```
 
-`sample_rate` and `symbol_rate` are measured in Hz. The symbol rate must match
-the encoded audio file, but the sample rates need not match. `sample_rate` must
-be 6, 8, 12, or 16 times the `symbol_rate`.
+`sample_rate` and `symbol_rate` are measured in Hz. `sample_rate` must be 5, 6,
+8, 10, 12, or 16 times `symbol_rate`. The symbol rate must match the encoded
+audio file, but the sample rates need not match.
 
 `packet_size` and `block_size` are measured in bytes and must match the
 values that were passed to the encoder. `block_size` must be a multiple
@@ -101,7 +102,7 @@ more robust against overflow, but the default is usually plenty.
 Here's how we might instantiate our `Decoder` object:
 
 ```C++
-quadra::Decoder<48000, 8000, 256, 1024> decoder;
+quadra::Decoder<48000, 9600, 256, 1024> decoder;
 ```
 
 #### Initialization
