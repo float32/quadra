@@ -165,12 +165,34 @@ the value of which we use to decide what to do next.
     the decoder's `Reset` function before reattempting decoding, perhaps
     after waiting for our user to press a 'retry' button.
 
+Additionally, three member functions are provided for retrieving the current
+progress of the data transfer:
+
+```C++
+decoder.total_size_bytes()
+```
+Returns a `uint32_t` indicating the total size
+in bytes of encoded data, padded to a multiple `block_size`.
+
+```C++
+decoder.bytes_received()
+```
+Returns a `uint32_t` indicating the total number
+of bytes so far received.
+
+```C++
+decoder.progress()
+```
+Returns a `float` on the closed interval [0, 1]
+indicating the overall progress of the data transfer.
+
 Here's how we might set up our processing loop:
 
 ```C++
 for (;;)
 {
     quadra::Result result = decoder.Process();
+    IndicateProgress(decoder.progress());
 
     if (result == quadra::RESULT_PACKET_COMPLETE)
     {
